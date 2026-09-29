@@ -2,7 +2,7 @@
 # /root/scripts/suricata_alerts_zbx.sh
 #
 # Conta linhas novas de bloqueio em cada alerts.log (uma por interface Suricata)
-# desde a ultima execucao, e envia via zabbix_sender (trapper) com TLS/PSK
+# desde a ultima execução, e envia via zabbix_sender (trapper) com TLS/PSK
 # para o Zabbix Proxy local. Roda a cada minuto via cron (Services > Cron na GUI).
 #
 # Novas interfaces adicionadas depois sao pegas automaticamente pelo
@@ -41,7 +41,7 @@ for ALERTLOG in "$LOGDIR"/suricata_*/alerts.log; do
         LAST_POS=0
     fi
 
-    # rotacionou (inode mudou) OU arquivo encolheu -> reseta leitura
+    # rotacionou (inode mudou) OU arquivo encolheu -> reinicia leitura
     if [ "$CURR_INODE" != "$LAST_INODE" ] || [ "$CURR_SIZE" -lt "$LAST_POS" ]; then
         LAST_POS=0
     fi
