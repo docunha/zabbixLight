@@ -1,0 +1,172 @@
+services:
+  zabbix-db:
+    image: mysql:8.0
+    container_name: zabbix-db
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_bin --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=1024M --binlog-expire-logs-seconds=172800
+    volumes:
+      - ./db_data:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+    environment:
+      - MYSQL_DATABASE=zabbix
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=zabbix_pwd1
+      - MYSQL_ROOT_PASSWORD=root_pwd1
+    restart: always
+    networks:
+      - zbx-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  zabbix-server:
+    image: zabbix/zabbix-server-mysql:7.0-ubuntu-latest
+    container_name: zabbix-server
+    ports:
+      - "10051:10051"
+    volumes:
+      - ./zbx_env/alertsnmp:/var/lib/zabbix/snmptraps
+      - ./zbx_env/mibs:/usr/share/snmp/mibs
+      - ./zbx_env/modules:/var/lib/zabbix/modules
+      - ./zbx_env/usr/lib/zabbix/alertscripts:/usr/lib/zabbix/alertscripts
+      - ./zbx_env/usr/lib/zabbix/externalscripts:/usr/lib/zabbix/externalscripts
+      - ./zbx_env/zabbix/certs:/var/lib/zabbix/enc:ro # Mapeia os certificados dentro do container
+    environment:
+      - DB_SERVER_HOST=zabbix-db
+      - MYSQL_DATABASE=zabbix
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=zabbix_pwd1
+      - MYSQL_ROOT_PASSWORD=root_pwd1
+      - ZBX_TLSCAFILE=/var/lib/zabbix/enc/zabbix_ca.crt
+      - ZBX_TLSCERTFILE=/var/lib/zabbix/enc/zabbix_server.crt
+      - ZBX_TLSKEYFILE=/var/lib/zabbix/enc/zabbix_server.key
+
+      # --- OTIMIZAÇÃO DE MEMÓRIA (Caches reduzidos para 30 hosts) ---
+      - CACHE_SIZE=64M # Aumentado de 32M para 64M (Grafana)
+      - HISTORY_CACHE_SIZE=32M # Aumentado de 16M para 32M (Grafana)
+      - HISTORY_INDEX_CACHE_SIZE=4M # Reduzido de 128M para 4M
+      - TREND_CACHE_SIZE=4M # Reduzido de 128M para 4M
+      - VALUE_CACHE_SIZE=64M # AUMENTADO DE 8M PARA 64M (Crucial para o Grafana ler rápido)
+
+      # --- OTIMIZAÇÃO DE PROCESSOS (Reduz o consumo de CPU) ---
+      - STARTPOLLERS=3 # Reduzido de 20 para 3 (Trata checagens passivas do Agent)
+      - STARTPOLLERSUNREACHABLE=1 # Mantém apenas 1 processo cuidando de hosts fora do ar
+      - STARTTRAPPERS=1 # Reduzido para 1 (Ouve conexões de Agents ativos)
+      - STARTPINGERS=1 # Reduzido de 10 para 1 (Apenas para testes simples de ping se houver)
+      - STARTPREPROCESSORS=6 # Aumentado de 3 para 6 (Processa os logs em paralelo mais rápido)
+      - STARTDISCOVERERS=0 # DESATIVADO: Você não precisa de autodescoberta de rede contínua
+      - STARTALERTERS=1 # Reduzido para 1 (Envio de e-mails/Telegram)
+      - STARTHTTPOLLERS=0 # DESATIVADO: Desliga monitoramento de páginas web externas
+
+      # --- CONFIGURAÇÃO PARA RELATÓRIOS AGENDADOS ---
+      - ZBX_STARTREPORTWRITERS=3
+      - ZBX_WEBSERVICEURL=http://zabbix-web-service:10053/report
+
+    depends_on:
+      - zabbix-db
+      - zabbix-web-service
+    restart: always
+    networks:
+      - zbx-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  # --- ADICIONE ESTE NOVO SERVIÇO ABAIXO ---
+  zabbix-web-service:
+    image: zabbix/zabbix-web-service:7.0-ubuntu-latest
+    container_name: zabbix-web-service
+    restart: always
+    ports:
+      - "10053:10053"
+    networks:
+      - zbx-net
+    # O container já possui o Chromium embutido para gerar os PDFs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  zabbix-web:
+    image: zabbix/zabbix-web-nginx-mysql:7.0-ubuntu-latest
+    container_name: zabbix-web
+    ports:
+      - "8080:8080"
+        # - "8443:8443"
+    environment:
+      - ZBX_SERVER_HOST=zabbix-server
+      - DB_SERVER_HOST=zabbix-db
+      - MYSQL_DATABASE=zabbix
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=zabbix_pwd1
+      - PHP_TZ=America/Sao_Paulo
+    depends_on:
+      - zabbix-db
+      - zabbix-server
+    restart: always
+    networks:
+      - zbx-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  zabbix-agent2:
+    image: zabbix/zabbix-agent2:7.0-ubuntu-latest
+    container_name: zabbix-agent2 #######Vai monitorar o mysqlServer#######
+    privileged: true
+    user: "0:999"
+    restart: always
+    depends_on:
+      - zabbix-server
+      - zabbix-db
+    environment:
+      - ZBX_HOSTNAME=Zabbix Docker Host
+      - ZBX_SERVER_HOST=zabbix-server
+      - ZBX_SERVER_ACTIVE_HOST=zabbix-server
+      - ZBX_PLUGIN_MYSQL_SESSIONS=tcp://zabbix-db:3306
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /:/host/rootfs:ro
+      - /sys:/host/sys:ro
+      - /proc:/host/proc:ro
+      - ./zbx_env/agent2/mysql:/var/lib/zabbix/.mysql
+    networks:
+      - zbx-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  zabbix-agent:
+    image: zabbix/zabbix-agent2:latest
+    container_name: zabbix-agent #######Vai monitorar o zabbix-server#######
+    restart: always
+    ports:
+      - "10052:10050"
+    volumes:
+      - /:/host/rootfs:ro # <-- CORREÇÃO: Mapeia o disco do host
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /proc:/proc:ro
+    environment:
+      ZBX_SERVER_HOST: "zabbix-server"
+      ZBX_HOSTNAME: "Zabbix server"
+    privileged: true
+    user: root
+    depends_on:
+      - zabbix-server
+      - zabbix-db
+    networks:
+      - zbx-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  zbx-net:
+    driver: bridge
