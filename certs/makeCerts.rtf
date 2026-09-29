@@ -1,0 +1,101 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2639
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fnil\fcharset0 MesloLGS-NF-Regular;\f1\fnil\fcharset0 MesloLGS-NF-Bold;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;\red0\green0\blue0;\red255\green255\blue255;
+\red255\green255\blue255;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;\csgray\c0\c0;\csgray\c100000;
+\cssrgb\c100000\c100000\c100000;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww26800\viewh11520\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs26 \cf2 \cb3 \CocoaLigature0 \
+./gerar_certificado.sh\
+Erro: Par\'e2metros inv\'e1lidos.\
+Uso: ./gerar_certificado.sh <nome_do_certificado> <nome_da_ca>\
+Exemplo: ./gerar_certificado.sh zabbix_pfsense.lab.proxy zabbix_ca\
+\
+./gerar_certificado.sh zabbix_pfsense.lab.proxy zabbix_ca
+\f1\b \cf2 \cb4 \
+\
+\
+////////////////////////\
+// LAB\
+///////////////////////\
+Make cert and key\
+\
+openssl
+\f0\b0  req -new -nodes -sha256 -newkey rsa:2048 -keyout zabbix_pfsense.lab.key -out zabbix_pfsense.lab.csr -subj "/CN=ZabbixPfSenseLab/"\
+\
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f1\b \cf2 Sign cert\
+\
+\cb5 openssl
+\f0\b0  x509 -req -sha256 -in \cb4 zabbix_pfsense.lab\cb5 .csr -CA zabbix_ca.crt -CAkey zabbix_ca.key -CAcreateserial -out \cb4 zabbix_pfsense.lab\cb5 .crt -days 1460\
+\
+
+\f1\b \cb4 Check cert\
+
+\f0\b0 \cb5 \
+
+\f1\b openssl
+\f0\b0  x509 -in zabbix_pfsense.lab.crt -noout -issuer -subject\
+\
+
+\f1\b \cb4 ////////////////////////\
+// LAB Proxy\
+///////////////////////\
+Make cert and key\
+\
+openssl
+\f0\b0  req -new -nodes -sha256 -newkey rsa:2048 -keyout zabbix_pfsense.lab.proxy.key -out zabbix_pfsense.lab.proxy.csr -subj "/CN=ZabbixPfSenseLabProxy/"\
+\
+
+\f1\b Sign cert\
+\
+\cb5 openssl
+\f0\b0  x509 -req -sha256 -in \cb4 zabbix_pfsense.lab.proxy\cb5 .csr -CA zabbix_ca.crt -CAkey zabbix_ca.key -CAcreateserial -out \cb4 zabbix_pfsense.lab.proxy\cb5 .crt -days 1460\
+\
+
+\f1\b \cb4 Check cert\
+
+\f0\b0 \cb5 \
+
+\f1\b openssl
+\f0\b0  x509 -in zabbix_pfsense.lab\cb4 .proxy\cb5 .crt -noout -issuer -subject\
+\
+
+\f1\b \cb4 ////////////////////////\
+// GUARDA\
+///////////////////////\
+Make cert and key\
+\
+openssl
+\f0\b0  req -new -nodes -sha256 -newkey rsa:2048 -keyout \cb5 zabbix_GuardaBtu\cb4 .key -out \cb5 zabbix_GuardaBtu\cb4 .csr -subj "/CN=ZabbixGuardaBtu/"\
+\
+
+\f1\b Sign cert\
+\
+
+\f0\b0 \cb5 openssl x509 -req -sha256 -in zabbix_GuardaBtu.csr -CA zabbix_ca.crt -CAkey zabbix_ca.key -CAcreateserial -out zabbix_GuardaBtu.crt -days 1460\
+
+\f1\b \
+\cb4 Check cert\
+
+\f0\b0 \cb5 \
+openssl x509 -in zabbix_GuardaBtu.crt -noout -issuer -subject\
+\
+\
+TLSConnect=cert\
+TLSAccept=cert\
+TLSCAFile=/etc/zabbix/certs/zabbix_ca.crt\
+\
+TLSCertFile=/etc/zabbix/certs/zabbix_GuardaBtu.crt\
+\
+TLSKeyFile=/etc/zabbix/certs/zabbix_GuardaBtu.key\
+\
+\
+\
+\
+\
+\
+}
